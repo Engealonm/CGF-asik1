@@ -1,0 +1,215 @@
+#include <iostream>
+#include <vector>
+#include <cmath>
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+
+const float PI = 3.14159265358979323846f;
+
+const char* vertexShaderSource = R"(
+#version 330 core
+in vec4 vPosition;
+in vec4 vColor;
+out vec4 fragColor;
+void main() {
+    gl_Position = vPosition;
+    fragColor = vColor;
+}
+)";
+
+const char* fragmentShaderSource = R"(
+#version 330 core
+in vec4 fragColor;
+out vec4 FragColor;
+void main() {
+    FragColor = fragColor;
+}
+)";
+
+GLuint compileShader(GLenum type, const char* source) {
+    GLuint shader = glCreateShader(type);
+    glShaderSource(shader, 1, &source, nullptr);
+    glCompileShader(shader);
+    int success;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        char infoLog[512];
+        glGetShaderInfoLog(shader, 512, nullptr, infoLog);
+        std::cerr << "Shader compilation error: " << infoLog << std::endl;
+    }
+    return shader;
+}
+
+GLuint createProgram() {
+    GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexShaderSource);
+    GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
+    GLuint program = glCreateProgram();
+    glAttachShader(program, vertexShader);
+    glAttachShader(program, fragmentShader);
+    glLinkProgram(program);
+    int success;
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if (!success) {
+        char infoLog[512];
+        glGetProgramInfoLog(program, 512, nullptr, infoLog);
+        std::cerr << "Program linking error: " << infoLog << std::endl;
+    }
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+    return program;
+}
+
+void drawShape(GLuint program, const std::vector<float>& positions, const std::vector<float>& colors, GLenum mode, int numVertices) {
+    GLuint VAO, VBO_pos, VBO_col;
+    glGenVertexArrays(1, &VAO);
+    glBindVertexArray(VAO);
+
+    glGenBuffers(1, &VBO_pos);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_pos);
+    glBufferData(GL_ARRAY_BUFFER, positions.size() * sizeof(float), positions.data(), GL_STATIC_DRAW);
+    GLint posLoc = glGetAttribLocation(program, "vPosition");
+    glVertexAttribPointer(posLoc, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
+    glEnableVertexAttribArray(posLoc);
+
+    glGenBuffers(1, &VBO_col);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_col);
+    glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(float), colors.data(), GL_STATIC_DRAW);
+    GLint colLoc = glGetAttribLocation(program, "vColor");
+    glVertexAttribPointer(colLoc, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
+    glEnableVertexAttribArray(colLoc);
+
+    glDrawArrays(mode, 0, numVertices);
+
+    glDeleteBuffers(1, &VBO_pos);
+    glDeleteBuffers(1, &VBO_col);
+    glDeleteVertexArrays(1, &VAO);
+}
+
+int main() {
+    if (!glfwInit()) {
+        std::cerr << "Failed to initialize GLFW" << std::endl;
+        return -1;
+    }
+
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    GLFWwindow* window = glfwCreateWindow(500, 500, "OpenGL Part 1", nullptr, nullptr);
+    if (!window) {
+        std::cerr << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
+        return -1;
+    }
+
+    glfwMakeContextCurrent(window);
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        std::cerr << "Failed to initialize GLAD" << std::endl;
+        return -1;
+    }
+
+    GLuint program = createProgram();
+    glUseProgram(program);
+
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+
+    while (!glfwWindowShouldClose(window)) {
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        // Red Ellipse (left) - Uniform red, scaled y to 60%, using GL_TRIANGLE_FAN
+        std::vector<float> ellipse_pos;
+        std::vector<float> ellipse_col;
+        float ellipse_cx = -0.6f, ellipse_cy = 0.4f;
+        float rx = 0.25f, ry = rx * 0.6f;
+        int segments = 100;
+        // Center
+        ellipse_pos.insert(ellipse_pos.end(), {ellipse_cx, ellipse_cy, 0.0f, 1.0f});
+        ellipse_col.insert(ellipse_col.end(), {1.0f, 0.0f, 0.0f, 1.0f});
+        for (int i = 0; i <= segments; ++i) {
+            float angle = 2.0f * PI * i / segments;
+            float x = ellipse_cx + rx * std::cos(angle);
+            float y = ellipse_cy + ry * std::sin(angle);
+            ellipse_pos.insert(ellipse_pos.end(), {x, y, 0.0f, 1.0f});
+            ellipse_col.insert(ellipse_col.end(), {1.0f, 0.0f, 0.0f, 1.0f});
+        }
+        drawShape(program, ellipse_pos, ellipse_col, GL_TRIANGLE_FAN, segments + 2);
+
+        // Colorful Triangle (center) - Gradient colors, points based on angles, using GL_TRIANGLES
+        std::vector<float> tri_pos;
+        std::vector<float> tri_col;
+        float tri_cx = 0.0f, tri_cy = 0.4f, tri_r = 0.25f;
+        float start_angle = PI / 2.0f; // Pointing up
+        for (int i = 0; i < 3; ++i) {
+            float angle = start_angle + 2.0f * PI * i / 3.0f;
+            float x = tri_cx + tri_r * std::cos(angle);
+            float y = tri_cy + tri_r * std::sin(angle);
+            tri_pos.insert(tri_pos.end(), {x, y, 0.0f, 1.0f});
+        }
+        // Colors: Red, Green, Blue for rainbow gradient
+        tri_col = {
+            1.0f, 0.0f, 0.0f, 1.0f,
+            0.0f, 1.0f, 0.0f, 1.0f,
+            0.0f, 0.0f, 1.0f, 1.0f
+        };
+        drawShape(program, tri_pos, tri_col, GL_TRIANGLES, 3);
+
+        // Shaded Red Circle (right) - Red varies by angle for shading, using GL_TRIANGLE_FAN
+        std::vector<float> circle_pos;
+        std::vector<float> circle_col;
+        float circle_cx = 0.6f, circle_cy = 0.4f;
+        float r = 0.2f;
+        // Center
+        circle_pos.insert(circle_pos.end(), {circle_cx, circle_cy, 0.0f, 1.0f});
+        circle_col.insert(circle_col.end(), {0.5f, 0.0f, 0.0f, 1.0f}); // Medium red for center
+        for (int i = 0; i <= segments; ++i) {
+            float angle = 2.0f * PI * i / segments;
+            float x = circle_cx + r * std::cos(angle);
+            float y = circle_cy + r * std::sin(angle);
+            float red = (1.0f - std::cos(angle)) / 2.0f; // Brighter on left (angle ~ PI), darker on right
+            circle_pos.insert(circle_pos.end(), {x, y, 0.0f, 1.0f});
+            circle_col.insert(circle_col.end(), {red, 0.0f, 0.0f, 1.0f});
+        }
+        drawShape(program, circle_pos, circle_col, GL_TRIANGLE_FAN, segments + 2);
+
+        // Nested Squares (bottom) - Multiple concentric rotated squares as frames using GL_TRIANGLE_STRIP, colors varying from white to black
+        float sq_cx = 0.0f, sq_cy = -0.3f;
+        int levels = 6;
+        float max_r = 0.7f;
+        float delta_r = max_r / levels;
+        for (int level = 0; level < levels; ++level) {
+            std::vector<float> sq_pos;
+            std::vector<float> sq_col;
+            float outer_r = max_r - level * delta_r;
+            float inner_r = outer_r - delta_r * 0.5f; // Thin frame for "line" effect
+            float gray = 1.0f - static_cast<float>(level) / (levels - 1); // Vary from white to black
+            float start_angle = PI / 4.0f; // Rotated 45 degrees
+            for (int i = 0; i < 4; ++i) {
+                float angle = start_angle + i * (PI / 2.0f);
+                // Outer point
+                float ox = sq_cx + outer_r * std::cos(angle);
+                float oy = sq_cy + outer_r * std::sin(angle);
+                sq_pos.insert(sq_pos.end(), {ox, oy, 0.0f, 1.0f});
+                sq_col.insert(sq_col.end(), {gray, gray, gray, 1.0f});
+                // Inner point
+                float ix = sq_cx + inner_r * std::cos(angle);
+                float iy = sq_cy + inner_r * std::sin(angle);
+                sq_pos.insert(sq_pos.end(), {ix, iy, 0.0f, 1.0f});
+                sq_col.insert(sq_col.end(), {gray, gray, gray, 1.0f});
+            }
+            // Close the strip
+            float angle0 = start_angle;
+            sq_pos.insert(sq_pos.end(), {sq_cx + outer_r * std::cos(angle0), sq_cy + outer_r * std::sin(angle0), 0.0f, 1.0f});
+            sq_pos.insert(sq_pos.end(), {sq_cx + inner_r * std::cos(angle0), sq_cy + inner_r * std::sin(angle0), 0.0f, 1.0f});
+            sq_col.insert(sq_col.end(), {gray, gray, gray, 1.0f});
+            sq_col.insert(sq_col.end(), {gray, gray, gray, 1.0f});
+            drawShape(program, sq_pos, sq_col, GL_TRIANGLE_STRIP, 10);
+        }
+
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+
+    glDeleteProgram(program);
+    glfwTerminate();
+    return 0;
+}
