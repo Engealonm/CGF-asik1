@@ -1,0 +1,9 @@
+CC = g++ CFLAGS = -std=c++11 -Wall LDFLAGS = -lglfw -lGL -lm
+
+all: part1 part2
+
+part1: main.cpp $(CC) $(CFLAGS) main.cpp glad.c -o part1 $(LDFLAGS)
+
+part2: creative.cpp $(CC) $(CFLAGS) creative.cpp glad.c -o part2 $(LDFLAGS)
+
+clean: rm -f part1 part2
