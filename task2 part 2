@@ -1,0 +1,209 @@
+#include <iostream>
+#include <vector>
+#include <cmath>
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+
+const float PI = 3.14159265358979323846f;
+
+const char* vertexShaderSource = R"(
+#version 330 core
+in vec4 vPosition;
+in vec4 vColor;
+out vec4 fragColor;
+void main() {
+    gl_Position = vPosition;
+    fragColor = vColor;
+}
+)";
+
+const char* fragmentShaderSource = R"(
+#version 330 core
+in vec4 fragColor;
+out vec4 FragColor;
+void main() {
+    FragColor = fragColor;
+}
+)";
+GLuint compileShader(GLenum type, const char* source) {
+    GLuint shader = glCreateShader(type);
+    glShaderSource(shader, 1, &source, nullptr);
+    glCompileShader(shader);
+    int success;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        char infoLog[512];
+        glGetShaderInfoLog(shader, 512, nullptr, infoLog);
+        std::cerr << "Shader compilation error: " << infoLog << std::endl;
+    }
+    return shader;
+}
+GLuint createProgram() {
+    GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexShaderSource);
+    GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
+    GLuint program = glCreateProgram();
+    glAttachShader(program, vertexShader);
+    glAttachShader(program, fragmentShader);
+    glLinkProgram(program);
+    int success;
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if (!success) {
+        char infoLog[512];
+        glGetProgramInfoLog(program, 512, nullptr, infoLog);
+        std::cerr << "Program linking error: " << infoLog << std::endl;
+    }
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+    return program;
+}
+void drawShape(GLuint program, const std::vector<float>& positions, const std::vector<float>& colors, GLenum mode, int numVertices) {
+    GLuint VAO, VBO_pos, VBO_col;
+    glGenVertexArrays(1, &VAO);
+    glBindVertexArray(VAO);
+
+    glGenBuffers(1, &VBO_pos);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_pos);
+    glBufferData(GL_ARRAY_BUFFER, positions.size() * sizeof(float), positions.data(), GL_STATIC_DRAW);
+    GLint posLoc = glGetAttribLocation(program, "vPosition");
+    glVertexAttribPointer(posLoc, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
+    glEnableVertexAttribArray(posLoc);
+
+    glGenBuffers(1, &VBO_col);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_col);
+    glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(float), colors.data(), GL_STATIC_DRAW);
+    GLint colLoc = glGetAttribLocation(program, "vColor");
+    glVertexAttribPointer(colLoc, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
+    glEnableVertexAttribArray(colLoc);
+
+    glDrawArrays(mode, 0, numVertices);
+
+    glDeleteBuffers(1, &VBO_pos);
+    glDeleteBuffers(1, &VBO_col);
+    glDeleteVertexArrays(1, &VAO);
+}
+// compileShader and createProgram functions are identical to Part 1, omitted for brevity
+
+// drawShape function is identical to Part 1, omitted for brevity
+
+int main() {
+    if (!glfwInit()) {
+        std::cerr << "Failed to initialize GLFW" << std::endl;
+        return -1;
+    }
+
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    GLFWwindow* window = glfwCreateWindow(500, 500, "OpenGL Part 2", nullptr, nullptr);
+    if (!window) {
+        std::cerr << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
+        return -1;
+    }
+
+    glfwMakeContextCurrent(window);
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        std::cerr << "Failed to initialize GLAD" << std::endl;
+        return -1;
+    }
+
+    GLuint program = createProgram();
+    glUseProgram(program);
+
+    glClearColor(0.5f, 0.8f, 1.0f, 1.0f); // Light blue background for sky
+
+    while (!glfwWindowShouldClose(window)) {
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        // Sun: Shaded yellow-to-orange circle using GL_TRIANGLE_FAN, varying color range
+        std::vector<float> sun_pos;
+        std::vector<float> sun_col;
+        float sun_cx = 0.6f, sun_cy = 0.6f, sun_r = 0.3f;
+        int segments = 100;
+        // Center
+        sun_pos.insert(sun_pos.end(), { sun_cx, sun_cy, 0.0f, 1.0f });
+        sun_col.insert(sun_col.end(), { 1.0f, 0.8f, 0.0f, 1.0f }); // Bright yellow center
+        for (int i = 0; i <= segments; ++i) {
+            float angle = 2.0f * PI * i / segments;
+            float x = sun_cx + sun_r * std::cos(angle);
+            float y = sun_cy + sun_r * std::sin(angle);
+            float intensity = (1.0f + std::sin(angle)) / 2.0f; // Vary for sunset effect
+            float red = 1.0f * intensity;
+            float green = 0.5f * intensity;
+            sun_pos.insert(sun_pos.end(), { x, y, 0.0f, 1.0f });
+            sun_col.insert(sun_col.end(), { red, green, 0.0f, 1.0f });
+        }
+        drawShape(program, sun_pos, sun_col, GL_TRIANGLE_FAN, segments + 2);
+
+        // House body: Brown square using GL_TRIANGLE_STRIP
+        std::vector<float> house_body_pos = {
+            -0.4f, -0.8f, 0.0f, 1.0f,  // Bottom left
+            -0.4f, -0.2f, 0.0f, 1.0f,  // Top left
+            0.2f, -0.8f, 0.0f, 1.0f,   // Bottom right
+            0.2f, -0.2f, 0.0f, 1.0f    // Top right
+        };
+        std::vector<float> house_body_col = {
+            0.6f, 0.3f, 0.1f, 1.0f,
+            0.6f, 0.3f, 0.1f, 1.0f,
+            0.6f, 0.3f, 0.1f, 1.0f,
+            0.6f, 0.3f, 0.1f, 1.0f
+        };
+        drawShape(program, house_body_pos, house_body_col, GL_TRIANGLE_STRIP, 4);
+
+        // House roof: Red gradient triangle using GL_TRIANGLES
+        std::vector<float> roof_pos = {
+            -0.5f, -0.2f, 0.0f, 1.0f,  // Left
+            0.0f, 0.3f, 0.0f, 1.0f,    // Top
+            0.3f, -0.2f, 0.0f, 1.0f    // Right
+        };
+        std::vector<float> roof_col = {
+            0.8f, 0.0f, 0.0f, 1.0f,    // Darker red
+            1.0f, 0.2f, 0.2f, 1.0f,    // Brighter red
+            0.8f, 0.0f, 0.0f, 1.0f     // Darker red
+        };
+        drawShape(program, roof_pos, roof_col, GL_TRIANGLES, 3);
+
+        // Tree: Brown trunk (small triangle) and green foliage (3 overlapping fans with varying greens)
+        // Trunk
+        std::vector<float> trunk_pos = {
+            -0.8f, -0.8f, 0.0f, 1.0f,
+            -0.7f, -0.8f, 0.0f, 1.0f,
+            -0.75f, -0.3f, 0.0f, 1.0f
+        };
+        std::vector<float> trunk_col = {
+            0.4f, 0.2f, 0.0f, 1.0f,
+            0.4f, 0.2f, 0.0f, 1.0f,
+            0.4f, 0.2f, 0.0f, 1.0f
+        };
+        drawShape(program, trunk_pos, trunk_col, GL_TRIANGLES, 3);
+
+        // Foliage: 3 circles with varying green shades
+        std::vector<std::pair<float, float>> foliage_centers = { {-0.85f, -0.1f}, {-0.65f, -0.1f}, {-0.75f, 0.1f} };
+        for (int f = 0; f < 3; ++f) {
+            std::vector<float> fol_pos;
+            std::vector<float> fol_col;
+            float fol_cx = foliage_centers[f].first, fol_cy = foliage_centers[f].second, fol_r = 0.15f;
+            float green_shade = 0.4f + 0.2f * f; // Vary green intensity
+            // Center
+            fol_pos.insert(fol_pos.end(), { fol_cx, fol_cy, 0.0f, 1.0f });
+            fol_col.insert(fol_col.end(), { 0.0f, green_shade, 0.0f, 1.0f });
+            for (int i = 0; i <= segments; ++i) {
+                float angle = 2.0f * PI * i / segments;
+                float x = fol_cx + fol_r * std::cos(angle);
+                float y = fol_cy + fol_r * std::sin(angle);
+                float shade_var = (1.0f + std::sin(angle)) / 2.0f * 0.3f; // Slight variation
+                fol_pos.insert(fol_pos.end(), { x, y, 0.0f, 1.0f });
+                fol_col.insert(fol_col.end(), { 0.0f, green_shade - shade_var, 0.0f, 1.0f });
+            }
+            drawShape(program, fol_pos, fol_col, GL_TRIANGLE_FAN, segments + 2);
+        }
+
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+
+    glDeleteProgram(program);
+    glfwTerminate();
+    return 0;
+}
