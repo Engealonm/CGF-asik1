@@ -48,3 +48,18 @@ The `blue_square.cpp` program was created by modifying `red_triangle.cpp` with t
    - Provided instructions for compiling and running the programs.
    - Specified system requirements and dependency installation.
    - Noted the inclusion of GLAD files and how to regenerate them if needed.
+
+Part 1: Replicating the Given Image
+
+Ellipse (Left): Generated using parametric equations (x = cx + rx * cos(angle), y = cy + ry * sin(angle)) with ry = rx * 0.6. Drawn with GL_TRIANGLE_FAN using a center vertex and 100 perimeter segments, all colored uniform red (1,0,0,1). Positioned at the left-top.
+Triangle (Center): Points calculated with angles for an equilateral triangle (angle = start + 2*PI*i/3). Colored with red, green, and blue at vertices for a rainbow gradient via interpolation. Drawn with GL_TRIANGLES. Positioned at center-top.
+Shaded Circle (Right): Similar to the ellipse but with ry = rx (full circle). Center colored medium red (0.5,0,0,1). Perimeter red varied as (1 - cos(angle))/2 to shade brighter on the left, darker on the right, approximating the sphere-like effect. Interior shading handled by OpenGL interpolation. Used GL_TRIANGLE_FAN. Positioned at right-top.
+Nested Squares (Bottom): Created 6 levels of concentric rotated squares (starting angle π/4 for 45-degree rotation, points at π/4 + k*π/2). Each level draws a thin frame (outer and inner radius) using GL_TRIANGLE_STRIP to fill the border area, simulating white "lines" on a black background. Colors vary from white (outer) to black (inner) for a gradient effect. Positioned at bottom-center.
+
+Part 2: Creative Elements
+
+Background: Set to light blue for a sky effect.
+Sun: A shaded circle with a yellow-to-orange gradient (varied red/green based on sin(angle) for a sunset feel). Used GL_TRIANGLE_FAN.
+House Body: A brown square drawn using GL_TRIANGLE_STRIP.
+House Roof: A red gradient triangle using GL_TRIANGLES with varying red shades.
+Tree: Includes a brown trunk (small triangle) and green foliage (three overlapping fans with varying green shades) using GL_TRIANGLE_FAN.
